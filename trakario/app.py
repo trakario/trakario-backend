@@ -1,6 +1,6 @@
 import json
 from base64 import b64decode
-from typing import List
+from typing import List, Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Depends, HTTPException, APIRouter
@@ -85,14 +85,26 @@ async def post_applicant_rating(applicant_id: int, rating: RatingIn):
     return rating
 
 
-@auth_app.put("/applicants/{applicant_id}/stage", response_model=Stage)
-async def put_applicant_stage(applicant_id: int, stage: Stage = Body(...)):
+async def update_attr(applicant_id: int, key: str, value: Any) -> Any:
     attrs = (await ApplicantDBPydantic.from_queryset_single(
         ApplicantDB.get(id=applicant_id)
     )).attributes
-    attrs['stage'] = stage
+    attrs[key] = value
     await ApplicantDB.filter(id=applicant_id).update(attributes=attrs)
-    return stage
+    return value
+
+
+@auth_app.put("/applicants/{applicant_id}/stage", response_model=Stage)
+async def put_applicant_stage(applicant_id: int, stage: Stage = Body(...)):
+    return await update_attr(applicant_id, 'stage', stage)
+
+
+@auth_app.put("/applicants/{applicant_id}/name", response_model=str)
+async def put_applicant_stage(applicant_id: int, name: str = Body(...)):
+    count = await ApplicantDB.filter(id=applicant_id).update(name=name)
+    if count != 1:
+        raise HTTPException(status_code=404, detail="No such applicant")
+    return name
 
 
 @auth_app.delete("/applicants/{applicant_id}/ratings/{rating_id}")
