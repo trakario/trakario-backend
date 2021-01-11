@@ -12,7 +12,6 @@ from tempfile import NamedTemporaryFile
 from typing import List
 
 import en_core_web_sm
-import imap_tools
 import uvicorn
 from imap_tools import MailBox, A
 from loguru import logger
@@ -26,7 +25,6 @@ from trakario.models import ApplicantDB
 class PeopleFinder:
     def __init__(self):
         self.nlp = en_core_web_sm.load()
-
     def get_people(self, text: str) -> List[str]:
         doc = self.nlp(text)
         return [
