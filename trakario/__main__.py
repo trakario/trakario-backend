@@ -103,7 +103,7 @@ async def email_monitor(once=False):
                 config.imap_email, config.imap_password,
                 initial_folder=config.imap_folder
         ) as mailbox:
-            for message in mailbox.fetch(A(seen=False)):
+            for message in mailbox.fetch(A(seen=False), mark_seen=False):
                 logger.info('New email...')
                 name, email, github, body = parse_email(finder, message.text)
                 duplicates = await ApplicantDB.filter(email=email)
@@ -137,6 +137,7 @@ async def email_monitor(once=False):
                 )
                 logger.info('Applicant created.')
                 logger.debug('Applicant object: {}', applicant_db)
+                mailbox.seen(message.uid, True)
             if once:
                 return
             logger.debug('Waiting 30 seconds...')
