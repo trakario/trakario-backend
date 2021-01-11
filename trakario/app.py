@@ -91,7 +91,6 @@ async def put_applicant_stage(applicant_id: int, stage: Stage = Body(...)):
         ApplicantDB.get(id=applicant_id)
     )).attributes
     attrs['stage'] = stage
-    print('STAGE:', stage, attrs)
     await ApplicantDB.filter(id=applicant_id).update(attributes=attrs)
     return stage
 
@@ -111,6 +110,8 @@ async def get_applicant_rating(applicant_id: int):
     applicant_db = await ApplicantDBPydantic.from_queryset_single(
         ApplicantDB.get(id=applicant_id)
     )
+    if not applicant_db.attributes['resume']:
+        raise HTTPException(status_code=404, detail='No resume found')
     return Response(
         b64decode(applicant_db.attributes['resume']),
         media_type='application/pdf',

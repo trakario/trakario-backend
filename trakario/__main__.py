@@ -117,20 +117,23 @@ async def email_monitor(once=False):
                 logger.info('Attachments: {}',
                             [i.filename for i in message.attachments])
 
-                attachment = message.attachments[0]
-                logger.info('Content Type: {}', attachment.content_type)
-                resume_data = attachment.payload
-                _, ext = splitext(attachment.filename)
-                if ext.lower() != '.pdf':
-                    logger.info('Converting...')
-                    resume_data = await convert_to_pdf(resume_data, ext)
+                if message.attachments:
+                    attachment = message.attachments[0]
+                    logger.info('Content Type: {}', attachment.content_type)
+                    resume_data = attachment.payload
+                    _, ext = splitext(attachment.filename)
+                    if ext.lower() != '.pdf':
+                        logger.info('Converting...')
+                        resume_data = await convert_to_pdf(resume_data, ext)
+                else:
+                    resume_data = ''
                 applicant_db = await ApplicantDB.create(
                     name=name,
                     email=email,
                     attributes=dict(
                         githubUrl=github,
                         emailText=body,
-                        resume=b64encode(resume_data).decode(),
+                        resume=b64encode(resume_data).decode() if resume_data else '',
                         ratings=[],
                         stage='unprocessed'
                     )

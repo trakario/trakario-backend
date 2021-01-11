@@ -65,7 +65,7 @@ def applicant_db_to_applicant(applicant_db: ApplicantDBPydantic) -> Applicant:
         githubUrl=attrs['githubUrl'],
         resumeUrl='/applicants/{}/resume/Resume_{}.pdf'.format(
             applicant_db.id, applicant_db.name.replace(' ', '-')
-        ),
+        ) if applicant_db.resume else '',
         emailText=attrs['emailText'],
         ratings=attrs['ratings'],
         stage=attrs['stage']
