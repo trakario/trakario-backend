@@ -42,8 +42,9 @@ def parse_email(finder: PeopleFinder, body):
     body = re.sub(r'\r\n', '\n', body)
     *_, body = re.split(r'-{3,}\s*[fF]orwarded\s+[mM]essage\s*-{3,}', body)
     *_, body = re.split(r'Begin forwarded message:', body)
+    body = re.sub(r'^[> ]+', '', body, flags=re.MULTILINE)
     from_match = (list(re.finditer(
-        r'^\*?From:\*?\s*(.*?)\s+<(\S+@\S+\.\S+)>', body, re.MULTILINE
+        r'^\*?From:\*?\s*(.*?)\s+<(\S+@\S+\.\S+)>', body, flags=re.MULTILINE
     )) or [''])[-1]
 
     if from_match:
@@ -63,7 +64,8 @@ def parse_email(finder: PeopleFinder, body):
     body = re.sub(r'^\W+$', r'', body, re.MULTILINE)
     body = re.sub(r'\n\n+', r'\n\n', body).strip()
     people = finder.get_people(prefix + body)
-    name = Counter(map(normalize_name, people)).most_common(1)[0][0]
+    counts = Counter(map(normalize_name, people))
+    name = counts.most_common(1)[0][0] if counts else from_name
     from_email = from_match.group(2).lower()
     github = re.search(r'github.com/[^\s/]+', body)
     if github:
