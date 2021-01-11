@@ -12,8 +12,9 @@ from tempfile import NamedTemporaryFile
 from typing import List
 
 import en_core_web_sm
+import imap_tools
 import uvicorn
-from imap_tools import MailBox
+from imap_tools import MailBox, A
 from loguru import logger
 from tortoise import run_async, Tortoise
 
@@ -79,8 +80,6 @@ async def convert_to_pdf(data: bytes, ext: str) -> bytes:
             'libreoffice --headless --invisible --convert-to pdf "{}" --outdir /tmp'.format(
                 nf.name
             ),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
         )
         stdout, stderr = await proc.communicate()
         logger.debug('Conversion output: {} {}', stdout, stderr)
@@ -98,12 +97,14 @@ async def email_monitor(once=False):
     )
     await Tortoise.generate_schemas()
     finder = PeopleFinder()
-    with MailBox(config.imap_server).login(
-            config.imap_email, config.imap_password,
-            initial_folder=config.imap_folder
-    ) as mailbox:
-        while True:
-            for message in mailbox.fetch():
+    logger.info('Monitoring mail...')
+    while True:
+        with MailBox(config.imap_server).login(
+                config.imap_email, config.imap_password,
+                initial_folder=config.imap_folder
+        ) as mailbox:
+            for message in mailbox.fetch(A(seen=False)):
+                logger.info('New email...')
                 name, email, github, body = parse_email(finder, message.text)
                 duplicates = await ApplicantDB.filter(email=email)
                 if duplicates:
@@ -134,12 +135,12 @@ async def email_monitor(once=False):
                         stage='unprocessed'
                     )
                 )
-                logger.debug('Created applicant: {}', applicant_db)
-                mailbox.delete([message.uid])
+                logger.info('Applicant created.')
+                logger.debug('Applicant object: {}', applicant_db)
             if once:
                 return
             logger.debug('Waiting 30 seconds...')
-            await asyncio.sleep(30.0)
+        await asyncio.sleep(30.0)
 
 
 def main():
