@@ -4,7 +4,7 @@ setup(
     name='trakario',
     version='0.1.0',
     description='Automatic job applicant tracking system',
-    url='https://github.com/GIT_USER/trakario',
+    url='https://github.com/trakario/trakario',
     author='Matthew D. Scholefield',
     author_email='matthew331199@gmail.com',
     classifiers=[
@@ -24,6 +24,7 @@ setup(
         'loguru',
         'pydantic[dotenv]',
 
+        'python-dateutil',
         'imap_tools',
         'spacy',
 

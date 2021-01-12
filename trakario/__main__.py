@@ -25,6 +25,7 @@ from trakario.models import ApplicantDB
 class PeopleFinder:
     def __init__(self):
         self.nlp = en_core_web_sm.load()
+
     def get_people(self, text: str) -> List[str]:
         doc = self.nlp(text)
         return [
@@ -41,21 +42,30 @@ def parse_email(finder: PeopleFinder, body):
     *_, body = re.split(r'-{3,}\s*[fF]orwarded\s+[mM]essage\s*-{3,}', body)
     *_, body = re.split(r'Begin forwarded message:', body)
     body = re.sub(r'^[> ]+', '', body, flags=re.MULTILINE)
+    date_match = (list(re.finditer(
+        r'^\*?Date:\*?\s*(.*?)\s*$', body, flags=re.MULTILINE
+    )) or [''])[-1]
     from_match = (list(re.finditer(
         r'^\*?From:\*?\s*(.*?)\s+<(\S+@\S+\.\S+)>', body, flags=re.MULTILINE
     )) or [''])[-1]
 
-    if from_match:
-        from_name_raw = from_match.group(1)
-        from_name = from_name_raw
-        from_name = re.sub(r'\(.*\)', '', from_name)
-        if ',' in from_name:
-            last, first = from_name.split(',')
-            from_name = '{} {}'.format(first, last)
-        from_name = normalize_name(from_name)
-        prefix = "Hi, I'm {}. ".format(from_name)
-    else:
-        prefix = ''
+    if not from_match or not date_match:
+        logger.debug('Email body: {}', body)
+        raise ValueError('Cannot find From: or Date: in email')
+
+    from_name_raw = from_match.group(1)
+    from_name = from_name_raw
+    from_name = re.sub(r'\(.*\)', '', from_name)
+    if ',' in from_name:
+        last, first = from_name.split(',')
+        from_name = '{} {}'.format(first, last)
+    from_name = normalize_name(from_name)
+    prefix = "Hi, I'm {}. ".format(from_name)
+
+    from dateutil.parser import parse
+    logger.info('Date string: {}', date_match.group(1))
+    date = parse(date_match.group(1))
+
     *_, body = re.split(r'\n(\*?(From|To|Date|Subject):\*?[^\n]*\n)+', body,
                         re.MULTILINE)
     body = body.encode('ascii', 'ignore').decode()
@@ -68,7 +78,7 @@ def parse_email(finder: PeopleFinder, body):
     github = re.search(r'github.com/[^\s/]+', body)
     if github:
         github = 'https://{}'.format(github.group(0))
-    return name, from_email, github, body
+    return name, from_email, date, github, body
 
 
 async def convert_to_pdf(data: bytes, ext: str) -> bytes:
@@ -105,11 +115,8 @@ async def email_monitor(once=False):
         ) as mailbox:
             for message in mailbox.fetch(A(seen=False), mark_seen=False):
                 logger.info('New email...')
-                name, email, github, body = parse_email(finder, message.text)
-                duplicates = await ApplicantDB.filter(email=email)
-                if duplicates:
-                    logger.info('Skipping duplicate for: {}', email)
-                    continue
+                name, email, date, github, body = parse_email(finder, message.text)
+                logger.info("Applicant Submission Date: {}", date)
                 logger.info("Applicant name: {}", name)
                 logger.info("Applicant email: {}", email)
                 logger.info("Applicant GitHub: {}", github)
@@ -127,17 +134,28 @@ async def email_monitor(once=False):
                         resume_data = await convert_to_pdf(resume_data, ext)
                 else:
                     resume_data = ''
-                applicant_db = await ApplicantDB.create(
-                    name=name,
-                    email=email,
-                    attributes=dict(
-                        githubUrl=github,
-                        emailText=body,
-                        resume=b64encode(resume_data).decode() if resume_data else '',
-                        ratings=[],
-                        stage='unprocessed'
-                    )
+
+                new_attrs = dict(
+                    githubUrl=github,
+                    emailText=body,
+                    resume=b64encode(resume_data).decode() if resume_data else '',
+                    ratings=[],
+                    stage='unprocessed',
+                    dateSubmitted=date.timestamp()
                 )
+                applicant_dbs = await ApplicantDB.filter(email=email)
+                if applicant_dbs:
+                    applicant_db = applicant_dbs[0]
+                    attrs = applicant_db.attributes
+                    for k in ['githubUrl', 'emailText', 'resume', 'dateSubmitted']:
+                        attrs[k] = attrs.get(k) or new_attrs[k]
+                    await applicant_db.save()
+                else:
+                    applicant_db = await ApplicantDB.create(
+                        name=name,
+                        email=email,
+                        attributes=new_attrs
+                    )
                 logger.info('Applicant created.')
                 logger.debug('Applicant object: {}', applicant_db)
                 mailbox.seen(message.uid, True)

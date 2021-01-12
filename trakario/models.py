@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict
 
@@ -48,6 +49,7 @@ class Applicant(BaseModel):
     githubUrl: Optional[str]
     emailText: str
     ratings: List[Rating] = []
+    dateSubmitted: Optional[datetime] = None
 
 
 ApplicantDBPydantic = pydantic_model_creator(ApplicantDB, name="Applicant")
@@ -68,7 +70,8 @@ def applicant_db_to_applicant(applicant_db: ApplicantDBPydantic) -> Applicant:
         ) if attrs['resume'] else '',
         emailText=attrs['emailText'],
         ratings=attrs['ratings'],
-        stage=attrs['stage']
+        stage=attrs['stage'],
+        dateSubmitted=attrs.get('dateSubmitted')
     )
 
 
@@ -81,6 +84,7 @@ def applicant_to_applicant_db(applicant: Applicant) -> ApplicantDBPydantic:
             githubUrl=applicant.githubUrl,
             emailText=applicant.emailText,
             ratings=applicant.ratings,
-            stage=applicant.stage
+            stage=applicant.stage,
+            dateSubmitted=applicant.dateSubmitted
         )
     )
