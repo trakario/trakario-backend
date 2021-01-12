@@ -100,7 +100,7 @@ async def convert_to_pdf(data: bytes, ext: str) -> bytes:
         return data
 
 
-async def email_monitor(once=False):
+async def email_monitor(once=False, read=False):
     await Tortoise.init(
         db_url=config.db_url,
         modules={"models": ["trakario.models"]},
@@ -113,7 +113,7 @@ async def email_monitor(once=False):
                 config.imap_email, config.imap_password,
                 initial_folder=config.imap_folder
         ) as mailbox:
-            for message in mailbox.fetch(A(seen=False), mark_seen=False):
+            for message in mailbox.fetch(A(seen=read), mark_seen=False):
                 logger.info('New email...')
                 name, email, date, github, body = parse_email(finder, message.text)
                 logger.info("Applicant Submission Date: {}", date)
@@ -171,6 +171,7 @@ def main():
     sp.required = True
     p = sp.add_parser("mail-monitor")
     p.add_argument('--once', action='store_true', help='Only run once')
+    p.add_argument('--read', action='store_true', help='Run against read messages')
     sp.add_parser("init-db")
     sp.add_parser("drop-db")
     p = sp.add_parser("run")
@@ -189,7 +190,7 @@ def main():
             )
         )
     elif args.action == 'mail-monitor':
-        run_async(email_monitor(args.once))
+        run_async(email_monitor(args.once, args.read))
     elif args.action == 'init-db':
         chdir('/')
         call(['sudo', '-u', 'postgres', shutil.which('createuser'), 'trakario'])
